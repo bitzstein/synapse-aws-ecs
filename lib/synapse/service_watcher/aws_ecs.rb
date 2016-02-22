@@ -132,6 +132,8 @@ class Synapse::ServiceWatcher
         rescue Exception => e
           log.warn "synapse: error in aws_ecs watcher thread: #{e.inspect}"
           log.warn e.backtrace
+          # If we don't sleep, we can end up slamming the AWS API
+          sleep 1
         end
       end
 
