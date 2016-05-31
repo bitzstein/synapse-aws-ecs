@@ -19,6 +19,7 @@ class Synapse::ServiceWatcher
   class AwsEcsWatcher < BaseWatcher
     
     attr_reader :check_interval
+    attr_reader :aws_ec2_interface
 
     def start
       region = @discovery['aws_region'] || ENV['AWS_REGION']
@@ -38,6 +39,7 @@ class Synapse::ServiceWatcher
       end
       
       @check_interval = @discovery['check_interval'] || 15.0
+      @aws_ec2_interface = @discovery['aws_ec2_interface'] || 'private'
 
       log.info "synapse: aws_ecs watcher looking for tasks in cluster #{@discovery['aws_ecs_cluster']} " +
         "in family #{@discovery['aws_ecs_family']}"
@@ -90,12 +92,20 @@ class Synapse::ServiceWatcher
           if host_ports.size == 1
             ci = container_instance_map[t.container_instance_arn].first
             instance = ec2_instance_map[ci.ec2_instance_id]
-            # Only discover private dns and ip, the format below is needed for synapse to configure haproxy
-            new_backends << {
-              'name' => instance.private_dns_name,
-              'host' => instance.private_ip_address,
-              'port' => host_ports.first
-            }
+            if aws_ec2_interface == 'public'
+              new_backends << {
+                'name' => instance.public_dns_name,
+                'host' => instance.public_ip_address,
+                'port' => host_ports.first
+              }
+            else
+              # Only discover private dns and ip, the format below is needed for synapse to configure haproxy
+              new_backends << {
+                'name' => instance.private_dns_name,
+                'host' => instance.private_ip_address,
+                'port' => host_ports.first
+              }
+            end
           end
         end
       end
@@ -111,6 +121,8 @@ class Synapse::ServiceWatcher
         unless @discovery['aws_ecs_cluster']
       raise ArgumentError, "aws_ecs_family is required for service #{@name}" \
         unless @discovery['aws_ecs_family']
+      raise ArgumentError, "aws_ec2_interface must be either 'public' or 'private'" \
+        unless !@discovery['aws_ec2_interface'] || @discovery['aws_ec2_interface'] == 'public' || @discovery['aws_ec2_interface'] == 'private'
     end
 
     def watch

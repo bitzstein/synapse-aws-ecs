@@ -12,7 +12,8 @@ describe Synapse::AwsEcsWatcher do
 	'aws_ecs_cluster' => 'default',
 	'aws_ecs_family' => 'helloworld',
 	'aws_access_key_id' => 'AFAKEKEY',
-	'aws_secret_access_key' => 'AREALLYFAKEACCESSKEY'
+	'aws_secret_access_key' => 'AREALLYFAKEACCESSKEY',
+        'aws_ec2_interface' => 'private'
       },
       'haproxy' => {
         'port' => '8000'
