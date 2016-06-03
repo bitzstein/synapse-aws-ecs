@@ -8,6 +8,8 @@ class Synapse::ServiceWatcher
   #   aws_region: For the region to speak to ECS and EC2 APIs
   #   aws_ecs_cluster: For the ECS cluster in which you want to discover tasks and containers
   #   aws_ecs_family: Is the family of TaskDefinition to discover, for example my_app, or redis
+  #   aws_ec2_interface: "private" or "public" to select which EC2 instance IP address & DNS name to use.
+  #   container_port: Select which container port to link to. Optional if there is only one port in the task.
   #
   # Usage:
   #   You'll need to create a TaskDefinition for ECS specifying the service which needs discovery, as well as a linked container
@@ -20,6 +22,7 @@ class Synapse::ServiceWatcher
     
     attr_reader :check_interval
     attr_reader :aws_ec2_interface
+    attr_reader :container_port
 
     def start
       region = @discovery['aws_region'] || ENV['AWS_REGION']
@@ -40,6 +43,7 @@ class Synapse::ServiceWatcher
       
       @check_interval = @discovery['check_interval'] || 15.0
       @aws_ec2_interface = @discovery['aws_ec2_interface'] || 'private'
+      @container_port = @discovery['container_port'] || 0
 
       log.info "synapse: aws_ecs watcher looking for tasks in cluster #{@discovery['aws_ecs_cluster']} " +
         "in family #{@discovery['aws_ecs_family']}"
@@ -71,39 +75,57 @@ class Synapse::ServiceWatcher
           end
         end
 
-        # This loop iterates through each task, and for every container found in a single task
-        # ensures that there is exactly 1 host port bound across all containers in the task to
-        # remove ambiguity about which container and port to discover.
+        # This loop iterates through each task, and for every container found in a single task,
+        # it will consider all network bindings with a host port.
+        # NOTE there will be ambiguity if mulitple containers in a task have the same container port,
+        # so we raise an error in this situation.
         tasks.each do |t|
           puts "Found task: #{t}"
-          host_ports = []
+          task_nbs = []
           # Make sure to only discover RUNNING tasks so pre-launch or post-shutdown aren't included
           if t.last_status == "RUNNING"
             t.containers.each do |c|
               if c.network_bindings
                 c.network_bindings.each do |nb|
                   if nb.host_port
-                    host_ports << nb.host_port
+                    task_nbs << nb
                   end
                 end
               end
             end
           end
-          if host_ports.size == 1
+          if task_nbs.size > 0
+            # Find the host port matching the specfied container_port
+            host_port = 0
+            if container_port == 0
+              raise ArgumentError, "container_port needs to be specified for service #{@name}, which has #{task_nbs.size} container ports exposed" unless task_nbs.size == 1
+              host_port = task_nbs.first.host_port
+            else
+              task_nbs.each do |nb|
+                if nb.container_port == container_port
+                  raise ArgumentError, "container_port matches multiple containers in a single task instance for service #{@name}" unless host_port == 0                  
+                  host_port = nb.host_port                  
+                end
+              end
+              if host_port == 0
+                raise ArgumentError, "container_port does not match any ports for service #{@name}"
+              end
+            end
+            
+            # Find the EC2 instance the task is running on
             ci = container_instance_map[t.container_instance_arn].first
             instance = ec2_instance_map[ci.ec2_instance_id]
             if aws_ec2_interface == 'public'
               new_backends << {
                 'name' => instance.public_dns_name,
                 'host' => instance.public_ip_address,
-                'port' => host_ports.first
+                'port' => host_port
               }
             else
-              # Only discover private dns and ip, the format below is needed for synapse to configure haproxy
               new_backends << {
                 'name' => instance.private_dns_name,
                 'host' => instance.private_ip_address,
-                'port' => host_ports.first
+                'port' => host_port
               }
             end
           end
