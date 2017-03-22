@@ -163,10 +163,10 @@ class Synapse::ServiceWatcher
 
           sleep_until_next_check(start)
         rescue Exception => e
-          log.warn "Error in aws_ecs watcher thread: #{e.inspect}"
+          log.warn "Error in aws_ecs watcher thread for #{@name} backends: #{e.inspect}"
           log.warn e.backtrace
           # If we don't sleep, we can end up slamming the AWS API
-          sleep 1
+          sleep (1 + rand(5)) # random number between 1 and 5 seconds
         end
       end
 
