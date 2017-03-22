@@ -157,11 +157,11 @@ class Synapse::ServiceWatcher
           current_backends = discover_tasks
 
           if last_backends != current_backends
-            log.info "#{@name} backends have changed."
+            log.info "#{@name} backends have changed (count #{current_backends.length})."
             last_backends = current_backends
             configure_backends(current_backends)
           else
-            log.info "#{@name} backends are unchanged."
+            log.info "#{@name} backends are unchanged (count #{current_backends.length})."
           end
 
           sleep_until_next_check(start)
