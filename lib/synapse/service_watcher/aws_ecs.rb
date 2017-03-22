@@ -45,7 +45,7 @@ class Synapse::ServiceWatcher
       @aws_ec2_interface = @discovery['aws_ec2_interface'] || 'private'
       @container_port = @discovery['container_port'] || 0
 
-      log.info "synapse: aws_ecs watcher looking for tasks in cluster #{@discovery['aws_ecs_cluster']} " +
+      log.info "Looking for tasks in cluster #{@discovery['aws_ecs_cluster']} " \
         "in family #{@discovery['aws_ecs_family']}"
       
       @watcher = Thread.new { watch }
@@ -80,7 +80,7 @@ class Synapse::ServiceWatcher
         # NOTE there will be ambiguity if mulitple containers in a task have the same container port,
         # so we raise an error in this situation.
         tasks.each do |t|
-          puts "Found task: #{t}"
+          log.debug "Found task: #{t}"
           task_nbs = []
           # Make sure to only discover RUNNING tasks so pre-launch or post-shutdown aren't included
           if t.last_status == "RUNNING"
@@ -131,7 +131,6 @@ class Synapse::ServiceWatcher
           end
         end
       end
-      puts new_backends
       new_backends
     end
 
@@ -155,37 +154,37 @@ class Synapse::ServiceWatcher
           current_backends = discover_tasks
 
           if last_backends != current_backends
-            log.info "synapse: aws_ecs watcher backends have changed."
+            log.info "#{@name} backends have changed."
             last_backends = current_backends
             configure_backends(current_backends)
           else
-            log.info "synapse: aws_ecs watcher backends are unchanged."
+            log.info "#{@name} backends are unchanged."
           end
 
           sleep_until_next_check(start)
         rescue Exception => e
-          log.warn "synapse: error in aws_ecs watcher thread: #{e.inspect}"
+          log.warn "Error in aws_ecs watcher thread: #{e.inspect}"
           log.warn e.backtrace
           # If we don't sleep, we can end up slamming the AWS API
           sleep 1
         end
       end
 
-      log.info "synapse: aws_ecs watcher exited successfully"
+      log.info "aws_ecs watcher exited successfully"
     end
 
     def configure_backends(new_backends)
       if new_backends.empty?
         if @default_servers.empty?
-          log.warn "synapse: no backends and no default servers for service #{@name};" \
+          log.warn "No backends and no default servers for service #{@name};" \
             " using previous backends: #{@backends.inspect}"
         else
-          log.warn "synapse: no backends for service #{@name};" \
+          log.warn "No backends for service #{@name};" \
             " using default servers: #{@default_servers.inspect}"
           @backends = @default_servers
         end
       else
-        log.info "synapse: discovered #{new_backends.length} backends for service #{@name}"
+        log.info "Discovered #{new_backends.length} backends for service #{@name} : #{new_backends}"
         @backends = new_backends
       end
       @synapse.reconfigure!
