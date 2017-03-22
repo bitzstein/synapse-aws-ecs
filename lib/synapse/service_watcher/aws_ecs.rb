@@ -151,17 +151,20 @@ class Synapse::ServiceWatcher
 
     def watch
       last_backends = []
+      last_change = Time.now
+      
       until @should_exit
         begin
           start = Time.now
           current_backends = discover_tasks
 
           if last_backends != current_backends
-            log.info "#{@name} backends have changed (count #{current_backends.length})."
+            log.info "#{@name} backends have changed (count #{current_backends.length})"
             last_backends = current_backends
             configure_backends(current_backends)
+            last_change = Time.now
           else
-            log.info "#{@name} backends are unchanged (count #{current_backends.length})."
+            log.info "#{@name} backends are unchanged for #{(Time.now - last_change).round(0)} seconds (count #{current_backends.length})"
           end
 
           sleep_until_next_check(start)
