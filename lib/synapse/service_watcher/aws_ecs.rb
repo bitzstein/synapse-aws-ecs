@@ -55,6 +55,9 @@ class Synapse::ServiceWatcher
       new_backends = []
       # api_task_ids returns an array of arrays of task_ids, so each iteration gives us 100 or less task_ids to work with
       api_task_ids.each do |task_ids|
+        if task_ids.length == 0
+          next
+        end
         tasks = api_describe_tasks(task_ids)
 
         container_instance_arns = tasks.map(&:container_instance_arn)
