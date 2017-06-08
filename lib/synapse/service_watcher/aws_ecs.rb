@@ -22,6 +22,7 @@ class Synapse::ServiceWatcher
     
     attr_reader :check_interval
     attr_reader :aws_ec2_interface
+    attr_reader :container_name
     attr_reader :container_port
 
     def start
@@ -43,6 +44,7 @@ class Synapse::ServiceWatcher
       
       @check_interval = @discovery['check_interval'] || 15.0
       @aws_ec2_interface = @discovery['aws_ec2_interface'] || 'private'
+      @container_name = @discovery['container_name'] || nil
       @container_port = @discovery['container_port'] || 0
 
       log.info "Looking for tasks in cluster #{@discovery['aws_ecs_cluster']} " \
@@ -80,15 +82,15 @@ class Synapse::ServiceWatcher
 
         # This loop iterates through each task, and for every container found in a single task,
         # it will consider all network bindings with a host port.
-        # NOTE there will be ambiguity if mulitple containers in a task have the same container port,
-        # so we raise an error in this situation.
+        # NOTE: there will be ambiguity if multiple containers in a task have the same container port,
+        # in which case we raise an error. This can be avoided by specifying container name.
         tasks.each do |t|
           log.debug "Found task: #{t}"
           task_nbs = []
           # Make sure to only discover RUNNING tasks so pre-launch or post-shutdown aren't included
           if t.last_status == "RUNNING"
             t.containers.each do |c|
-              if c.network_bindings
+              if (container_name === nil || c.name == container_name) && c.network_bindings
                 c.network_bindings.each do |nb|
                   if nb.host_port
                     task_nbs << nb
