@@ -90,7 +90,7 @@ class Synapse::ServiceWatcher
           # Make sure to only discover RUNNING tasks so pre-launch or post-shutdown aren't included
           if t.last_status == "RUNNING"
             t.containers.each do |c|
-              if (container_name === nil || c.name == container_name) && c.network_bindings
+              if (container_name.nil? || c.name == container_name) && c.network_bindings
                 c.network_bindings.each do |nb|
                   if nb.host_port
                     task_nbs << nb
